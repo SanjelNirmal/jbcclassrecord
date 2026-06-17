@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Lora", "Times New Roman", Times, serif;
+}
+
+@media print {
+  @page {
+    margin: 0;
+    size: auto; /* Alternatively size: A4 portrait; but let browser handle */
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    margin: 0;
+    padding: 0;
+    background-color: white;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+  }
+}
