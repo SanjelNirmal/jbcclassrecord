@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { LogIn, UserPlus, BookOpen, Layers, Users, MapPin, Mail, Phone, Github, Globe } from 'lucide-react';
+import { LogIn, BookOpen, Layers, Users, MapPin, Mail, Phone, Github, Globe } from 'lucide-react';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -14,14 +13,9 @@ export default function Auth() {
     setLoading(true);
     setMessage(null);
     
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setMessage({ type: 'error', text: error.message });
-      else setMessage({ type: 'success', text: 'Sign up successful! You can now sign in.' });
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMessage({ type: 'error', text: error.message });
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setMessage({ type: 'error', text: error.message });
+    
     setLoading(false);
   };
 
@@ -38,8 +32,8 @@ export default function Auth() {
           </div>
           
           <div className="z-10 text-center flex flex-col items-center">
-            <div className="w-24 h-24 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-8 text-[#0097B2]">
-              <BookOpen className="w-12 h-12" />
+            <div className="w-24 h-24 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-8">
+              <img src="/favicon.png" alt="JBC Class Record Logo" className="w-16 h-16 rounded-xl" />
             </div>
             <h2 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
               JBC Class Record
@@ -64,12 +58,24 @@ export default function Auth() {
         {/* Right Column - Interactive Login & Developer Info */}
         <div className="w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-between overflow-y-auto">
           <div>
+            <div className="md:hidden flex flex-col items-center text-center mb-8">
+              <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center mb-4">
+                <img src="/favicon.png" alt="JBC Class Record Logo" className="w-10 h-10 rounded-lg" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
+                JBC Class Record
+              </h2>
+              <p className="text-sm text-gray-500 px-4">
+                Transforming classroom administration into a seamless, digital experience.
+              </p>
+            </div>
+
             <div className="mb-10 lg:mb-12">
               <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
                 Welcome Back !
               </h2>
               <p className="mt-2 text-gray-500">
-                {isSignUp ? 'Create an account to get started' : 'Lets get you Logged in'}
+                Lets get you Logged in
               </p>
             </div>
 
@@ -138,18 +144,14 @@ export default function Auth() {
                   disabled={loading}
                   className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-[#0097B2] hover:bg-[#00869e] focus:outline-none focus:ring-4 focus:ring-cyan-500/30 disabled:opacity-50 transition-all"
                 >
-                  {loading ? 'Processing...' : (isSignUp ? 'Sign up' : 'Login')}
+                  {loading ? 'Processing...' : 'Login'}
                 </button>
               </div>
               
               <div className="text-center mt-4">
-                <button
-                  type="button"
-                  className="text-sm text-gray-500 hover:text-gray-900 font-medium"
-                  onClick={() => setIsSignUp(!isSignUp)}
-                >
-                  {isSignUp ? 'Alternative Login Options' : "Don't have an account? Sign up"}
-                </button>
+                <p className="text-sm text-gray-600">
+                  New user? <a href="mailto:hackingwithnirmal@gmail.com" className="font-medium text-[#0097B2] hover:text-cyan-700">Contact admin for new registration.</a>
+                </p>
               </div>
             </form>
           </div>

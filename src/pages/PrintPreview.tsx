@@ -63,7 +63,10 @@ export default function PrintPreview() {
       });
 
       pdf.addImage(imgData, 'PNG', 0, 0, template.width, template.height);
-      pdf.save(`ClassRecord_${record.level}_${record.program_year}_${record.month}.pdf`);
+      const now = new Date();
+      const yr = now.getFullYear();
+      const mo = String(now.getMonth() + 1).padStart(2, '0');
+      pdf.save(`ClassRecord_${yr}_${mo}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF. Please try printing instead.');

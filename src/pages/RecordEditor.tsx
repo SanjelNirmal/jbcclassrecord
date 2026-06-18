@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import { ClassRecord, RecordRow, Template } from '../types';
-import { Save, Plus, Trash2, ArrowLeft, Copy } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowLeft, Copy, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { PROGRAMS, ACADEMIC_YEARS, NEPALI_MONTHS, SUBJECT_MAPPING } from '../data/academicData';
 
 export default function RecordEditor() {
@@ -16,6 +16,16 @@ export default function RecordEditor() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error'} | null>(null);
   
+  // Auto-save statuses
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [draftDetected, setDraftDetected] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const isInitialLoad = useRef(true);
+  const [currentId, setCurrentId] = useState<string | null>(effectiveId || null);
+
   const [record, setRecord] = useState<ClassRecord>({
     level: 'BACHELOR',
     program_year: '',
@@ -35,42 +45,142 @@ export default function RecordEditor() {
       }
     });
 
-    if (id) {
-      api.getRecord(Number(id)).then(data => {
+    const checkDraft = () => {
+      const draftStr = localStorage.getItem('jbc_record_draft');
+      if (draftStr && !effectiveId) {
+        setDraftDetected(true);
+      }
+    };
+
+    if (effectiveId) {
+      api.getRecord(Number(effectiveId)).then(data => {
         if (isDuplicate) {
           const duplicatedRows = data.rows?.map(r => {
              const { id, ...rest } = r; 
              return rest; 
           });
           setRecord({ ...data, id: undefined, created_at: undefined, rows: duplicatedRows });
+          checkDraft();
         } else {
           setRecord(data);
         }
         setLoading(false);
+        isInitialLoad.current = false;
+        setMounted(true);
       });
+    } else {
+      checkDraft();
+      setLoading(false);
+      isInitialLoad.current = false;
+      setMounted(true);
     }
-  }, [id, isDuplicate]);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
+    };
+  }, [id, effectiveId, isDuplicate]);
+
+  const loadDraft = () => {
+    const draftStr = localStorage.getItem('jbc_record_draft');
+    if (draftStr) {
+      try {
+        const parsed = JSON.parse(draftStr);
+        setRecord(parsed);
+        setCurrentId(parsed.id || null);
+        setMessage({ text: 'Draft restored successfully.', type: 'success' });
+        setTimeout(() => setMessage(null), 3000);
+      } catch (e) {
+        console.error('Failed to parse draft', e);
+      }
+    }
+    setDraftDetected(false);
+  };
+
+  const clearDraft = () => {
+    localStorage.removeItem('jbc_record_draft');
+    setDraftDetected(false);
+  };
+
+  const getComputedRecord = useCallback((r: ClassRecord) => {
+    const getOrdinal = (lvl: string) => {
+      const numMatch = lvl.match(/\d+/);
+      if(!numMatch) return '';
+      const n = parseInt(numMatch[0]);
+      const s = ["th", "st", "nd", "rd"];
+      const v = n % 100;
+      return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    };
+    const computedLevel = 'BACHELOR';
+    const computedProgramYear = `${r.program} ${getOrdinal(r.academic_level || '')} ${r.academic_year}`;
+    return {
+      ...r,
+      level: computedLevel,
+      program_year: computedProgramYear
+    };
+  }, []);
+
+  const performSave = useCallback(async (isAutoSave = false) => {
+    if (!record.template_id) return;
+    
+    setSaveStatus('saving');
+    
+    try {
+      const recordToSave = getComputedRecord(record);
+
+      if (currentId) {
+        await api.updateRecord(Number(currentId), recordToSave);
+      } else {
+        const { id: newId } = await api.createRecord(recordToSave);
+        setCurrentId(String(newId));
+        // Update URL without reloading to avoid duplicates on refresh
+        window.history.replaceState(null, '', `/records/${newId}`);
+      }
+      
+      setSaveStatus('saved');
+      setLastSaved(new Date());
+      localStorage.removeItem('jbc_record_draft');
+    } catch (err) {
+      console.error(err);
+      setSaveStatus('failed');
+      if (!isAutoSave) {
+        setMessage({ text: 'Failed to save record.', type: 'error' });
+      }
+      // Keep draft in local storage if backend failed
+      localStorage.setItem('jbc_record_draft', JSON.stringify({ ...record, id: currentId }));
+    }
+  }, [record, currentId, getComputedRecord]);
+
+  // Debounced save on field change
+  useEffect(() => {
+    if (!mounted || isInitialLoad.current) return;
+    
+    setSaveStatus('idle');
+    localStorage.setItem('jbc_record_draft', JSON.stringify({ ...record, id: currentId }));
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    
+    debounceTimerRef.current = setTimeout(() => {
+      performSave(true);
+    }, 2000); // 2 seconds debounce
+
+  }, [record]); // watch record changes
+
+  // Auto save every 30 seconds
+  useEffect(() => {
+    if (!mounted) return;
+    
+    autoSaveTimerRef.current = setInterval(() => {
+      if (saveStatus !== 'saving') {
+        performSave(true);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(autoSaveTimerRef.current!);
+  }, [mounted, performSave, saveStatus]);
 
   const handleSmartPopulate = (prog: string, level: string) => {
-    const subjects = SUBJECT_MAPPING[prog]?.[level] || [];
-    if (subjects.length > 0) {
-      setRecord(r => ({
-        ...r,
-        program: prog,
-        academic_level: level,
-        rows: subjects.map((sub, idx) => ({
-          date: r.rows?.[idx]?.date || '',
-          period: r.rows?.[idx]?.period || '',
-          subject: sub,
-          topic: r.rows?.[idx]?.topic || '',
-          start_time: r.rows?.[idx]?.start_time || '',
-          end_time: r.rows?.[idx]?.end_time || '',
-          pedagogy: r.rows?.[idx]?.pedagogy || ''
-        }))
-      }));
-    } else {
-      setRecord(r => ({ ...r, program: prog, academic_level: level }));
-    }
+    setRecord(r => ({ ...r, program: prog, academic_level: level }));
   };
 
   const handleAddRow = () => {
@@ -99,41 +209,28 @@ export default function RecordEditor() {
     });
   };
 
+  const handleTimeAction = (index: number) => {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    setRecord(r => {
+      const newRows = [...(r.rows || [])];
+      if (!newRows[index].start_time) {
+        newRows[index] = { ...newRows[index], start_time: timeString };
+      } else if (!newRows[index].end_time) {
+        newRows[index] = { ...newRows[index], end_time: timeString };
+      }
+      return { ...r, rows: newRows };
+    });
+  };
+
   const handleSave = async () => {
     setSaving(true);
-    try {
-      
-      const getOrdinal = (lvl: string) => {
-        const numMatch = lvl.match(/\d+/);
-        if(!numMatch) return '';
-        const n = parseInt(numMatch[0]);
-        const s = ["th", "st", "nd", "rd"];
-        const v = n % 100;
-        return n + (s[(v - 20) % 10] || s[v] || s[0]);
-      };
-      
-      const computedLevel = 'BACHELOR';
-      const computedProgramYear = `${record.program} ${getOrdinal(record.academic_level || '')} ${record.academic_year}`;
-      
-      const recordToSave = {
-        ...record,
-        level: computedLevel,
-        program_year: computedProgramYear
-      };
-
-      if (effectiveId) {
-         await api.updateRecord(Number(effectiveId), recordToSave);
-         setMessage({ text: 'Record updated successfully.', type: 'success' });
-         setTimeout(() => setMessage(null), 3000);
-      } else {
-        const { id: newId } = await api.createRecord(recordToSave);
-        navigate(`/records/${newId}`);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage({ text: 'Failed to save record.', type: 'error' });
-    } finally {
-      setSaving(false);
+    await performSave(false);
+    setSaving(false);
+    if (saveStatus !== 'failed') {
+       setMessage({ text: 'Record saved successfully.', type: 'success' });
+       setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -141,16 +238,71 @@ export default function RecordEditor() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {draftDetected && (
+         <div className="mb-6 p-4 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-between">
+           <div className="flex items-center text-orange-800">
+             <AlertCircle className="w-5 h-5 mr-3" />
+             <p className="font-medium text-sm">We found an unfinished draft of your record.</p>
+           </div>
+           <div className="flex gap-3">
+             <button onClick={clearDraft} className="text-orange-700 hover:text-orange-900 text-sm font-medium">Discard Draft</button>
+             <button onClick={loadDraft} className="bg-orange-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-orange-700 transition-colors">Restore Draft</button>
+           </div>
+         </div>
+      )}
+
       {message && (
         <div className={`mb-4 p-4 rounded-md text-sm font-medium ${message.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
           {message.text}
         </div>
       )}
-      <div className="flex items-center space-x-4 mb-6">
-        <button onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-700">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900">{effectiveId ? 'Edit Class Record' : (isDuplicate ? 'Duplicate Class Record' : 'New Class Record')}</h1>
+      
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <div className="flex items-center space-x-4">
+          <button onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-700">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">{currentId ? 'Edit Class Record' : 'New Class Record'}</h1>
+        </div>
+
+        {/* Save Status Indicators */}
+        <div className="flex items-center text-sm font-medium px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm">
+          {saveStatus === 'saving' && (
+            <>
+              <Loader2 className="w-4 h-4 text-[#0097B2] animate-spin mr-2" />
+              <span className="text-gray-600">Saving...</span>
+            </>
+          )}
+          {saveStatus === 'saved' && lastSaved && (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-green-500 mr-2" />
+              <span className="text-gray-600">
+                Draft Saved
+                <span className="font-normal text-gray-400 ml-1">
+                  at {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </span>
+            </>
+          )}
+          {saveStatus === 'failed' && (
+            <>
+              <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
+              <span className="text-red-600">Save Failed. Draft stored locally.</span>
+            </>
+          )}
+          {saveStatus === 'idle' && !lastSaved && (
+             <>
+              <Clock className="w-4 h-4 text-gray-400 mr-2" />
+              <span className="text-gray-500">Unsaved Changes</span>
+            </>
+          )}
+          {saveStatus === 'idle' && lastSaved && (
+            <>
+              <Clock className="w-4 h-4 text-orange-400 mr-2" />
+              <span className="text-gray-500">Unsaved Changes</span>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8 p-6">
@@ -158,8 +310,8 @@ export default function RecordEditor() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Template</label>
-            <select
-              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              <select
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[#0097B2] focus:border-[#0097B2]"
               value={record.template_id}
               onChange={e => setRecord({ ...record, template_id: Number(e.target.value) })}
             >
@@ -170,7 +322,7 @@ export default function RecordEditor() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
             <select
-              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[#0097B2] focus:border-[#0097B2]"
               value={record.program}
               onChange={e => handleSmartPopulate(e.target.value, record.academic_level || '')}
             >
@@ -180,7 +332,7 @@ export default function RecordEditor() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Level / Sem</label>
             <select
-              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[#0097B2] focus:border-[#0097B2]"
               value={record.academic_level}
               onChange={e => handleSmartPopulate(record.program || '', e.target.value)}
             >
@@ -192,7 +344,7 @@ export default function RecordEditor() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
             <select
-              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[#0097B2] focus:border-[#0097B2]"
               value={record.academic_year}
               onChange={e => setRecord({ ...record, academic_year: e.target.value })}
             >
@@ -202,7 +354,7 @@ export default function RecordEditor() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
             <select
-              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-[#0097B2] focus:border-[#0097B2]"
               value={record.month}
               onChange={e => setRecord({ ...record, month: e.target.value })}
             >
@@ -241,28 +393,41 @@ export default function RecordEditor() {
               {(record.rows || []).map((row, idx) => (
                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-2">
-                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-blue-500 text-sm py-1 px-2" value={row.date} onChange={e => handleChangeRow(idx, 'date', e.target.value)} placeholder="03-04" />
+                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.date} onChange={e => handleChangeRow(idx, 'date', e.target.value)} placeholder="03-04" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-16 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-blue-500 text-sm py-1 px-2" value={row.period} onChange={e => handleChangeRow(idx, 'period', e.target.value)} placeholder="1st" />
+                    <input type="text" className="w-16 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.period} onChange={e => handleChangeRow(idx, 'period', e.target.value)} placeholder="1st" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" list="subjectList" className="w-40 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-blue-500 text-sm py-1 px-2" value={row.subject} onChange={e => handleChangeRow(idx, 'subject', e.target.value)} placeholder="Subject" />
+                    <input type="text" list="subjectList" className="w-40 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.subject} onChange={e => handleChangeRow(idx, 'subject', e.target.value)} placeholder="Subject" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-full border-gray-300 rounded bg-transparent focus:bg-white focus:ring-blue-500 text-sm py-1 px-2" value={row.topic} onChange={e => handleChangeRow(idx, 'topic', e.target.value)} placeholder="Topic details..." />
+                    <input type="text" className="w-full min-w-[200px] border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.topic} onChange={e => handleChangeRow(idx, 'topic', e.target.value)} placeholder="Topic details..." />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-blue-500 text-sm py-1 px-2" value={row.start_time} onChange={e => handleChangeRow(idx, 'start_time', e.target.value)} placeholder="6:30 AM" />
+                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.start_time} onChange={e => handleChangeRow(idx, 'start_time', e.target.value)} placeholder="6:30 AM" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-blue-500 text-sm py-1 px-2" value={row.end_time} onChange={e => handleChangeRow(idx, 'end_time', e.target.value)} placeholder="7:15 AM" />
+                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.end_time} onChange={e => handleChangeRow(idx, 'end_time', e.target.value)} placeholder="7:15 AM" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-16 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-blue-500 text-sm py-1 px-2" value={row.pedagogy} onChange={e => handleChangeRow(idx, 'pedagogy', e.target.value)} placeholder="1" />
+                    <input type="text" className="w-16 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.pedagogy} onChange={e => handleChangeRow(idx, 'pedagogy', e.target.value)} placeholder="1" />
                   </td>
-                  <td className="px-4 py-2 text-center">
-                    <button onClick={() => handleRemoveRow(idx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50">
+                  <td className="px-4 py-2 flex items-center justify-center gap-2 mt-1">
+                    <button
+                      onClick={() => handleTimeAction(idx)}
+                      className={`text-[11px] px-2 py-1 rounded font-medium min-w-[70px] ${
+                        !row.start_time
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : !row.end_time
+                          ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                      title={!row.start_time ? "Stamp Start Time" : !row.end_time ? "Stamp End Time" : "Time Stamped"}
+                    >
+                      {!row.start_time ? 'Punch In' : !row.end_time ? 'Punch Out' : 'Done'}
+                    </button>
+                    <button onClick={() => handleRemoveRow(idx)} className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -287,16 +452,16 @@ export default function RecordEditor() {
       <div className="mt-8 flex justify-end gap-4">
         <button
           onClick={handleSave}
-          disabled={saving || !record.template_id}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-md hover:bg-blue-700 flex items-center shadow-sm disabled:opacity-50 transition-colors"
+          disabled={saving || !record.template_id || saveStatus === 'saving'}
+          className="bg-[#0097B2] text-white px-6 py-2.5 rounded-md hover:bg-[#00869e] flex items-center shadow-sm disabled:opacity-50 transition-colors font-medium border border-transparent"
         >
-          <Save className="w-5 h-5 mr-2" />
-          {saving ? 'Saving...' : (effectiveId ? 'Save Changes' : 'Save Record')}
+          <Save className="w-4 h-4 mr-2" />
+          {saving ? 'Saving...' : 'Save & Sync'}
         </button>
-        {effectiveId && (
+        {currentId && (
           <button
-             onClick={() => navigate(`/records/${effectiveId}/print`)}
-             className="bg-green-600 text-white px-6 py-2.5 rounded-md hover:bg-green-700 flex items-center shadow-sm transition-colors"
+             onClick={() => navigate(`/records/${currentId}/print`)}
+             className="bg-green-600 text-white px-6 py-2.5 rounded-md hover:bg-green-700 flex items-center shadow-sm transition-colors font-medium border border-transparent"
            >
              Proceed to Print
            </button>

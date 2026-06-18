@@ -2,18 +2,81 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { ClassRecord } from '../types';
-import { Plus, Printer } from 'lucide-react';
+import { Plus, Printer, Download, Upload } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import ImportModal from '../components/ImportModal';
 
 export default function Dashboard() {
   const [records, setRecords] = useState<ClassRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
-  useEffect(() => {
+  const fetchRecords = () => {
+    setLoading(true);
     api.getRecords().then(data => {
       setRecords(data);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    fetchRecords();
   }, []);
+
+  const handleExportCSV = async () => {
+    try {
+      setExporting(true);
+      const { data, error } = await supabase
+        .from('record_rows')
+        .select(`
+          date, period, subject, topic, start_time, end_time, pedagogy,
+          records ( level, program_year, month )
+        `);
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        alert('No data available to export.');
+        return;
+      }
+
+      const headers = ['Level', 'Program Year', 'Month', 'Date', 'Period', 'Subject', 'Topic', 'Start Time', 'End Time', 'Pedagogy'];
+      const csvRows = [headers.join(',')];
+
+      for (const row of data as any[]) {
+        const record = row.records;
+        const csvRow = [
+          record?.level || '',
+          record?.program_year || '',
+          record?.month || '',
+          row.date || '',
+          row.period || '',
+          row.subject || '',
+          row.topic || '',
+          row.start_time || '',
+          row.end_time || '',
+          row.pedagogy || ''
+        ];
+        csvRows.push(csvRow.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      }
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `class_records_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      console.error(err);
+      alert('Error exporting CSV: ' + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -22,13 +85,30 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
           <p className="text-gray-500 mt-2">Manage your class records for printing</p>
         </div>
-        <Link
-          to="/records/new"
-          className="bg-[#0097B2] text-white px-5 py-2.5 rounded-lg hover:bg-[#00869e] flex items-center shadow-sm transition-all focus:ring-4 focus:ring-cyan-500/30 font-medium"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          New Class Record
-        </Link>
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex-1 sm:flex-none justify-center bg-white text-gray-700 px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center shadow-sm transition-all focus:ring-4 focus:ring-gray-100 font-medium"
+          >
+            <Upload className="w-5 h-5 mr-2" />
+            Import CSV
+          </button>
+          <button
+            onClick={handleExportCSV}
+            disabled={exporting || records.length === 0}
+            className="flex-1 sm:flex-none justify-center bg-white text-gray-700 px-5 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center shadow-sm transition-all focus:ring-4 focus:ring-gray-100 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-5 h-5 mr-2" />
+            {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
+          <Link
+            to="/records/new"
+            className="flex-1 sm:flex-none justify-center bg-[#0097B2] text-white px-5 py-2.5 rounded-lg hover:bg-[#00869e] flex items-center shadow-sm transition-all focus:ring-4 focus:ring-cyan-500/30 font-medium"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            New Class Record
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100/50 overflow-hidden">
@@ -83,6 +163,7 @@ export default function Dashboard() {
           </ul>
         )}
       </div>
+      <ImportModal isOpen={showImport} onClose={() => setShowImport(false)} onSuccess={() => { setShowImport(false); fetchRecords(); }} />
     </div>
   );
 }
