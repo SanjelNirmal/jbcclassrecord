@@ -378,7 +378,7 @@ export default function RecordEditor() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">
+              <tr className="bg-gray-50 border-b border-gray-200 text-sm uppercase text-gray-700">
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Period</th>
                 <th className="px-4 py-3 font-medium">Subject</th>
@@ -393,25 +393,25 @@ export default function RecordEditor() {
               {(record.rows || []).map((row, idx) => (
                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-2">
-                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.date} onChange={e => handleChangeRow(idx, 'date', e.target.value)} placeholder="03-04" />
+                    <input type="text" className="w-24 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-base py-1 px-2 transition-colors" value={row.date} onChange={e => handleChangeRow(idx, 'date', e.target.value)} placeholder="03-04" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-16 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.period} onChange={e => handleChangeRow(idx, 'period', e.target.value)} placeholder="1st" />
+                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-base py-1 px-2 transition-colors" value={row.period} onChange={e => handleChangeRow(idx, 'period', e.target.value)} placeholder="1st" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" list="subjectList" className="w-40 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.subject} onChange={e => handleChangeRow(idx, 'subject', e.target.value)} placeholder="Subject" />
+                    <input type="text" list="subjectList" className="w-48 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-base py-1 px-2 transition-colors" value={row.subject} onChange={e => handleChangeRow(idx, 'subject', e.target.value)} placeholder="Subject" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-full min-w-[200px] border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.topic} onChange={e => handleChangeRow(idx, 'topic', e.target.value)} placeholder="Topic details..." />
+                    <input type="text" className="w-full min-w-[200px] border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-base py-1 px-2 transition-colors" value={row.topic} onChange={e => handleChangeRow(idx, 'topic', e.target.value)} placeholder="Topic details..." />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.start_time} onChange={e => handleChangeRow(idx, 'start_time', e.target.value)} placeholder="6:30 AM" />
+                    <input type="text" className="w-24 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-base py-1 px-2 transition-colors" value={row.start_time} onChange={e => handleChangeRow(idx, 'start_time', e.target.value)} placeholder="6:30 AM" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.end_time} onChange={e => handleChangeRow(idx, 'end_time', e.target.value)} placeholder="7:15 AM" />
+                    <input type="text" className="w-24 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-base py-1 px-2 transition-colors" value={row.end_time} onChange={e => handleChangeRow(idx, 'end_time', e.target.value)} placeholder="7:15 AM" />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="text" className="w-16 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-sm py-1 px-2 transition-colors" value={row.pedagogy} onChange={e => handleChangeRow(idx, 'pedagogy', e.target.value)} placeholder="1" />
+                    <input type="text" className="w-20 border-gray-300 rounded bg-transparent focus:bg-white focus:ring-[#0097B2] text-base py-1 px-2 transition-colors" value={row.pedagogy} onChange={e => handleChangeRow(idx, 'pedagogy', e.target.value)} placeholder="1" />
                   </td>
                   <td className="px-4 py-2 flex items-center justify-center gap-2 mt-1">
                     <button

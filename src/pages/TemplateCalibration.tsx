@@ -5,16 +5,16 @@ import { Template, TemplateField, PrintingCoordinateData } from '../types';
 import { Save, ArrowLeft, Plus, Image as ImageIcon, Trash2 } from 'lucide-react';
 
 const DEFAULT_FIELDS: TemplateField[] = [
-  { id: 'level', key: 'level', label: 'Level', x: 130, y: 270, fontSize: 14, fontFamily: 'Arial', align: 'left', width: 150 },
-  { id: 'program_year', key: 'program_year', label: 'Program Year', x: 480, y: 270, fontSize: 14, fontFamily: 'Arial', align: 'left', width: 150 },
-  { id: 'month', key: 'month', label: 'Month', x: 770, y: 270, fontSize: 14, fontFamily: 'Arial', align: 'left', width: 150 },
-  { id: 'date', key: 'date', label: 'Date', x: 80, y: 380, fontSize: 12, fontFamily: 'Arial', align: 'center', width: 50, isRepeating: true, rowSpacing: 75 },
-  { id: 'period', key: 'period', label: 'Period', x: 150, y: 380, fontSize: 12, fontFamily: 'Arial', align: 'center', width: 60, isRepeating: true, rowSpacing: 75 },
-  { id: 'subject', key: 'subject', label: 'Subject', x: 230, y: 380, fontSize: 12, fontFamily: 'Arial', align: 'left', width: 230, isRepeating: true, rowSpacing: 75 },
-  { id: 'topic', key: 'topic', label: 'Topic', x: 480, y: 380, fontSize: 12, fontFamily: 'Arial', align: 'left', width: 180, isRepeating: true, rowSpacing: 75 },
-  { id: 'start_time', key: 'start_time', label: 'Start Time', x: 680, y: 380, fontSize: 12, fontFamily: 'Arial', align: 'center', width: 60, isRepeating: true, rowSpacing: 75 },
-  { id: 'end_time', key: 'end_time', label: 'End Time', x: 760, y: 380, fontSize: 12, fontFamily: 'Arial', align: 'center', width: 70, isRepeating: true, rowSpacing: 75 },
-  { id: 'pedagogy', key: 'pedagogy', label: 'Pedagogy', x: 850, y: 380, fontSize: 12, fontFamily: 'Arial', align: 'center', width: 90, isRepeating: true, rowSpacing: 75 },
+  { id: 'level', key: 'level', label: 'Level', x: 130, y: 270, fontSize: 16, fontFamily: 'Arial', align: 'left', width: 150 },
+  { id: 'program_year', key: 'program_year', label: 'Program Year', x: 480, y: 270, fontSize: 16, fontFamily: 'Arial', align: 'left', width: 150 },
+  { id: 'month', key: 'month', label: 'Month', x: 770, y: 270, fontSize: 16, fontFamily: 'Arial', align: 'left', width: 150 },
+  { id: 'date', key: 'date', label: 'Date', x: 80, y: 380, fontSize: 14, fontFamily: 'Arial', align: 'center', width: 50, isRepeating: true, rowSpacing: 75 },
+  { id: 'period', key: 'period', label: 'Period', x: 150, y: 380, fontSize: 14, fontFamily: 'Arial', align: 'center', width: 60, isRepeating: true, rowSpacing: 75 },
+  { id: 'subject', key: 'subject', label: 'Subject', x: 230, y: 380, fontSize: 14, fontFamily: 'Arial', align: 'left', width: 230, isRepeating: true, rowSpacing: 75 },
+  { id: 'topic', key: 'topic', label: 'Topic', x: 480, y: 380, fontSize: 14, fontFamily: 'Arial', align: 'left', width: 180, isRepeating: true, rowSpacing: 75 },
+  { id: 'start_time', key: 'start_time', label: 'Start Time', x: 680, y: 380, fontSize: 14, fontFamily: 'Arial', align: 'center', width: 60, isRepeating: true, rowSpacing: 75 },
+  { id: 'end_time', key: 'end_time', label: 'End Time', x: 760, y: 380, fontSize: 14, fontFamily: 'Arial', align: 'center', width: 70, isRepeating: true, rowSpacing: 75 },
+  { id: 'pedagogy', key: 'pedagogy', label: 'Pedagogy', x: 850, y: 380, fontSize: 14, fontFamily: 'Arial', align: 'center', width: 90, isRepeating: true, rowSpacing: 75 },
 ];
 
 export default function TemplateCalibration() {
@@ -179,6 +179,10 @@ export default function TemplateCalibration() {
                 <div>
                   <label className="text-xs text-gray-500">Y Position</label>
                   <input type="number" value={field.y} onChange={e => setFields(fs => fs.map(f => f.id === field.id ? {...f, y: Number(e.target.value)} : f))} className="w-full border rounded px-2 py-1" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500">Font Size (px)</label>
+                  <input type="number" value={field.fontSize} onChange={e => setFields(fs => fs.map(f => f.id === field.id ? {...f, fontSize: Number(e.target.value)} : f))} className="w-full border rounded px-2 py-1" />
                 </div>
                 {field.isRepeating && (
                   <div className="col-span-2">
